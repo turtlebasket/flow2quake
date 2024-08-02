@@ -1,5 +1,5 @@
-**/output/*
-!**/output/.gitkeep
+**/data/*
+!**/data/.gitkeep
 
 
 # Byte-compiled / optimized / DLL files
