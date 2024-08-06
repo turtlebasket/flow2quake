@@ -2,6 +2,7 @@
 
 - [Flow2Quake](#flow2quake)
   - [Development](#development)
+    - [Case Structure](#case-structure)
     - [Environment Setup](#environment-setup)
     - [`dm`: Data Manager (On-site archive access)](#dm-data-manager-on-site-archive-access)
       - [Global Alias](#global-alias)
@@ -9,6 +10,15 @@
       - [Configuring SSH for `dm`](#configuring-ssh-for-dm)
 
 ## Development
+
+### Case Structure
+
+New cases should be created inside `flow2quake/cases` and have the following folder structure:
+
+- `my-case/`
+  - `data/` - stores input data
+  - `data-out/` - stores output (plots, etc) from model runs
+  - various models directories: `reservoir/`, `mechanical/`, etc.
 
 ### Environment Setup
 
@@ -28,7 +38,7 @@ conda create -f environment-ubuntu.yml -n flow2quake
 
 ```
 $ dm -h
-usage: dm [-h] {upload-data,download-data,upload-output,download-output,identify,status} ...
+usage: dm [-h] {status,datasync-up,datasync-down,upload,download,ls,rm,identify} ...
 
 Data Manager utility for Flow2Quake (/home/michael/flow2quake)
 
@@ -36,16 +46,18 @@ options:
   -h, --help            show this help message and exit
 
 subcommands:
-  {upload-data,download-data,upload-output,download-output,identify,status}
-    upload-data         Upload input data for an individual case
-    download-data       Download input data for an individual case
-    upload-output       Upload most recent outputs (plots, etc) for an individual case
-    download-output     Download someone's outputs (plots, etc) for an individual case
+  {status,datasync-up,datasync-down,upload,download,ls,rm,identify}
+    status              Check remote store structure & usage
+    datasync-up         Sync input data to archive for an individual case
+    datasync-down       Sync input data from archive for an individual case
+    upload              Upload most recent outputs (plots, etc) for an individual case
+    download            Download someone's outputs (plots, etc) for an individual case
+    ls                  List archived output entries for a case
+    rm                  Remove archived output entry for a case
     identify            Set your name for upload entries
-    status              Check remote store status
 ```
 
-`dm` is a simple utility that's bundled with the Flow2Quake codebase to sync large data files with GPS' archive and keep track of runs. It's thin wrapper around `rsync` and `scp` that copies data to and from `tecto` while managing paths and versioning for you. 
+`dm` is a small utility that's bundled with the Flow2Quake codebase to sync large data files with GPS' archive and keep track of runs. It's thin wrapper around `rsync` and `scp` that copies data to and from `tecto` while managing paths and versioning for you. 
 
 #### Global Alias
 
@@ -76,26 +88,33 @@ dm identify
 For example, you can download the archive data for case `groningen` using:
 
 ```
-dm download-data groningen
+dm datasync-down groningen
 ```
 
 If you make any important additions or changes to the input data, you can upload them using:
 
 ```
-dm upload-data groningen
+dm datasync-up groningen
 ```
 
 After running the models in `flow2quake/cases/groningen`, you can then archive your results as a unique, timestamped run-output using:
 
 ```
-dm upload-output groningen
+dm upload groningen
+```
+
+You can list all uploads for `groningen` or delete one by ID using:
+
+```
+dm ls groningen
+dm rm groningen -i <ID>
 ```
 
 The above three commands can have their confirm dialog overwritten using the `-y` flag:
 
 ```
 # will not ask for confirmation
-dm upload-output groningen -y
+dm upload groningen -y
 ```
 
 #### Configuring SSH for `dm`

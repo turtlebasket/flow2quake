@@ -49,38 +49,41 @@ if os.path.isfile(CONFIG_FILENAME):
 else:
     config = {}
 
-upload_data_parser = subparsers.add_parser(
-    "upload-data", help="Upload input data for an individual case"
+status_parser = subparsers.add_parser(
+    "status", help="Check remote store structure & usage"
 )
-download_data_parser = subparsers.add_parser(
-    "download-data", help="Download input data for an individual case"
+datasync_up_parser = subparsers.add_parser(
+    "datasync-up", help="Sync input data to archive for an individual case"
+)
+datasync_down_parser = subparsers.add_parser(
+    "datasync-down", help="Sync input data from archive for an individual case"
 )
 upload_output_parser = subparsers.add_parser(
-    "upload-output",
+    "upload",
     help="Upload most recent outputs (plots, etc) for an individual case",
 )
 download_output_parser = subparsers.add_parser(
-    "download-output",
+    "download",
     help="Download someone's outputs (plots, etc) for an individual case",
+)
+list_outputs_parser = subparsers.add_parser(
+    "ls", help="List archived output entries for a case"
+)
+remove_output_parser = subparsers.add_parser(
+    "rm", help="Remove archived output entry for a case"
 )
 identify_parser = subparsers.add_parser(
     "identify", help="Set your name for upload entries"
 )
-status_parser = subparsers.add_parser("status", help="Check remote store status")
-
 
 for sp in [
+    list_outputs_parser,
+    remove_output_parser,
     upload_output_parser,
     download_output_parser,
-    upload_data_parser,
-    download_data_parser,
+    datasync_up_parser,
+    datasync_down_parser,
 ]:
-    sp.add_argument(
-        "-y",
-        "--yes-to-all",
-        action="store_true",
-        help="Automatically confirm all y/n dialogs",
-    )
     sp.add_argument(
         dest="case",
         metavar="CASE",
@@ -89,9 +92,24 @@ for sp in [
         choices=known_cases,
     )
 
-download_output_parser.add_argument(
-    "-i", "--id", action="store", help="ID of run output upload to restore"
-)
+
+for sp in [
+    upload_output_parser,
+    download_output_parser,
+    datasync_up_parser,
+    datasync_down_parser,
+]:
+    sp.add_argument(
+        "-y",
+        "--yes-to-all",
+        action="store_true",
+        help="Automatically confirm all y/n dialogs",
+    )
+
+for sp in [download_output_parser, remove_output_parser]:
+    sp.add_argument(
+        "-i", "--id", action="store", help="ID of run output upload to restore"
+    )
 
 identify_parser.add_argument(
     "-n", "--name", help="Name you will use", action="store", type=str
@@ -180,9 +198,84 @@ def remove_empty_remote_dir(dir):
 try:
     match args.action:
         case "status":
-            print("hi")
+            print("not implemented")
 
-        case "upload-output":
+        case "ls":
+            completed = subprocess.run(
+                ["ssh", "-t", REMOTE_HOST, f"ls -1 {REMOTE_DIR}/{args.case}/outputs"],
+                capture_output=True,
+            )
+            if completed.returncode != 0:
+                print("Failed to list remote outputs:")
+                print("command: ", " ".join(completed.args))
+                print(completed.stdout.decode("utf-8"))
+                exit(1)
+            div = "".join(["-"] * 74)
+            print(
+                f"{div}\nUploads for: `{args.case}`\n\n{'date/time':<32} {'author':<30} ID\n{div}"
+            )
+            for out in (
+                completed.stdout.decode("utf-8").replace("\r", "").strip().split("\n")
+            ):
+                timestamp_pre, author_pre, id = out.split("_")
+                timestamp = datetime.datetime.fromisoformat(timestamp_pre).strftime(
+                    "%B %d, %Y at %H:%M:%S"
+                )
+                author = author_pre.replace("-", " ")
+                print(f"{timestamp:<32} {author:<30} {id}")
+            print()
+
+        case "rm":
+            output_id = args.id or input("Enter ID of output to delete: ")
+            completed = subprocess.run(
+                [
+                    "ssh",
+                    "-t",
+                    REMOTE_HOST,
+                    f"ls -1 {REMOTE_DIR}/{args.case}/outputs | grep {output_id}",
+                ],
+                capture_output=True,
+            )
+            if completed.returncode != 0:
+                print("Failed to list remote outputs:")
+                print("command: ", " ".join(completed.args))
+                print(completed.stdout.decode("utf-8"))
+                exit(1)
+            results = (
+                completed.stdout.decode("utf-8").replace("\r", "").strip().split("\n")
+            )
+            if len(results) < 1:
+                print(f"ID not found")
+                exit(1)
+            elif len(results) > 1:
+                print(f"Multiple IDs found")
+                exit(1)
+            out = results[0]
+            timestamp_pre, author_pre, id = out.split("_")
+            if id != output_id:
+                print(f"impl error: IDs do not match ({output_id} vs {id})")
+                exit(1)
+            author = author_pre.replace("-", " ")
+            if author != config["name"]:
+                confirm(f"Deleting output {id} by {author}, which is not yours.")
+            print("Deleting...")
+            completed = subprocess.run(
+                [
+                    "ssh",
+                    "-t",
+                    REMOTE_HOST,
+                    f"rm -r {REMOTE_DIR}/{args.case}/outputs/{out}",
+                ],
+                capture_output=True,
+            )
+            if completed.returncode != 0:
+                print("Failed to delete remote output:")
+                print("command: ", " ".join(completed.args))
+                print(completed.stdout.decode("utf-8"))
+                exit(1)
+            print("Done")
+
+        case "upload":
             confirm("This will create a new run-output entry in the remote archive.")
             if "name" not in config.keys():
                 set_name()
@@ -198,7 +291,7 @@ try:
                 exit(1)
             print("Done")
 
-        case "download-output":
+        case "download":
             print("Not implemented")
             exit(1)
 
@@ -206,7 +299,7 @@ try:
             src = f"{REMOTE_HOST}:{REMOTE_DIR}/{args.case}"
             dest = f"flow2quake/cases/{args.case}/{OUTPUT_DIRNAME}"
 
-        case "upload-data":
+        case "datasync-up":
             src = f"flow2quake/cases/{args.case}/{DATA_DIRNAME}/"  # trailing slash: copy contents, not directory itself
             dest = f"{REMOTE_HOST}:{REMOTE_DIR}/{args.case}/{DATA_DIRNAME}"
             create_case_dir(args.case)
@@ -221,7 +314,7 @@ try:
                 exit(1)
             print("Done")
 
-        case "download-data":
+        case "datasync-down":
             src = f"{REMOTE_HOST}:{REMOTE_DIR}/{args.case}/{DATA_DIRNAME}/"
             dest = f"flow2quake/cases/{args.case}/{DATA_DIRNAME}"
             create_case_dir(args.case)
