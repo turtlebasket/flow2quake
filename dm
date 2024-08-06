@@ -49,14 +49,19 @@ if os.path.isfile(CONFIG_FILENAME):
 else:
     config = {}
 
-sync_parser = subparsers.add_parser(
-    "datasync", help="Sync all input data for an individual case"
+upload_data_parser = subparsers.add_parser(
+    "upload-data", help="Upload input data for an individual case"
 )
-upload_parser = subparsers.add_parser(
-    "upload", help="Upload most recent outputs (plots, etc) for an individual case"
+download_data_parser = subparsers.add_parser(
+    "download-data", help="Download input data for an individual case"
 )
-download_parser = subparsers.add_parser(
-    "download", help="Download someone's outputs (plots, etc) for an individual case"
+upload_output_parser = subparsers.add_parser(
+    "upload-output",
+    help="Upload most recent outputs (plots, etc) for an individual case",
+)
+download_output_parser = subparsers.add_parser(
+    "download-output",
+    help="Download someone's outputs (plots, etc) for an individual case",
 )
 identify_parser = subparsers.add_parser(
     "identify", help="Set your name for upload entries"
@@ -64,7 +69,12 @@ identify_parser = subparsers.add_parser(
 status_parser = subparsers.add_parser("status", help="Check remote store status")
 
 
-for sp in [upload_parser, download_parser, sync_parser]:
+for sp in [
+    upload_output_parser,
+    download_output_parser,
+    upload_data_parser,
+    download_data_parser,
+]:
     sp.add_argument(
         "-y",
         "--yes-to-all",
@@ -74,15 +84,14 @@ for sp in [upload_parser, download_parser, sync_parser]:
     sp.add_argument(
         dest="case",
         metavar="CASE",
-        help="Case whose data should be uploaded (e.g. groningen, arbitrary)",
+        help="Case being operated on (e.g. groningen, arbitrary)",
         action="store",
         choices=known_cases,
     )
 
-for sp in [upload_parser, download_parser]:
-    sp.add_argument(
-        "-i", "--id", action="store", help="ID of run output upload to restore"
-    )
+download_output_parser.add_argument(
+    "-i", "--id", action="store", help="ID of run output upload to restore"
+)
 
 identify_parser.add_argument(
     "-n", "--name", help="Name you will use", action="store", type=str
@@ -173,8 +182,11 @@ try:
         case "status":
             print("hi")
 
-        case "upload":
+        case "upload-output":
             confirm("This will create a new run-output entry in the remote archive.")
+            if "name" not in config.keys():
+                set_name()
+                print("Identity set. You can run `dm identify` to overwrite it.")
             print(f"Creating new upload...")
             src = f"flow2quake/cases/{args.case}/{OUTPUT_DIRNAME}/"
             output_id, dest_dir = create_new_output_dir(args.case)
@@ -186,7 +198,7 @@ try:
                 exit(1)
             print("Done")
 
-        case "download":
+        case "download-output":
             print("Not implemented")
             exit(1)
 
@@ -194,15 +206,27 @@ try:
             src = f"{REMOTE_HOST}:{REMOTE_DIR}/{args.case}"
             dest = f"flow2quake/cases/{args.case}/{OUTPUT_DIRNAME}"
 
-        case "datasync":
-            if "name" not in config.keys():
-                set_name()
-                print("Identity set. You can run `dm identify` to overwrite it.")
+        case "upload-data":
             src = f"flow2quake/cases/{args.case}/{DATA_DIRNAME}/"  # trailing slash: copy contents, not directory itself
             dest = f"{REMOTE_HOST}:{REMOTE_DIR}/{args.case}/{DATA_DIRNAME}"
             create_case_dir(args.case)
             confirm(
-                f"This will sync your `{args.case}.{DATA_DIRNAME}` folder with the remote archive, and can potentially overwrite both local and remote files."
+                f"This will upload your `{args.case}.{DATA_DIRNAME}` folder and will overwrite files on the remote archive."
+            )
+            print("Starting rsync...")
+            completed = subprocess.run(["rsync", *RSYNC_FLAGS, "--", src, dest])
+            if completed.returncode != 0:
+                print("command: ", " ".join(completed.args))
+                print(completed.stderr.decode("utf-8"))
+                exit(1)
+            print("Done")
+
+        case "download-data":
+            src = f"{REMOTE_HOST}:{REMOTE_DIR}/{args.case}/{DATA_DIRNAME}/"
+            dest = f"flow2quake/cases/{args.case}/{DATA_DIRNAME}"
+            create_case_dir(args.case)
+            confirm(
+                f"This will download from the remote archive and overwrite files in your `{args.case}.{DATA_DIRNAME}` folder."
             )
             print("Starting rsync...")
             completed = subprocess.run(["rsync", *RSYNC_FLAGS, "--", src, dest])
