@@ -7,8 +7,8 @@ from scipy.interpolate import griddata
 from mpl_toolkits.mplot3d import Axes3D
 import time
 from CoolProp.CoolProp import PropsSI
-from auxiliary_classes import *
-from auxiliary_functions import *
+from .auxiliary_classes import *
+from .auxiliary_functions import *
 
 
 ########################################################################################################################

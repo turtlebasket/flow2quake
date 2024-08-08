@@ -1,6 +1,6 @@
 import pandas as pd
 import vtk
-from vtk.util.numpy_support import vtk_to_numpy
+from vtkmodules.util.numpy_support import vtk_to_numpy
 import numpy as np
 import math
 import os
@@ -13,7 +13,7 @@ from tqdm import tqdm
 from mshr import*
 import random
 import pickle as pkl
-from Functions.Auxiliary_class import*
+from util.auxiliary_classes import*
 
 ########################################################################################################################
 # Extract points, pressure and h of a given iteration from calculated and stored data 
@@ -34,18 +34,18 @@ def extract_points_p_h(iteration):
 # Find names of files which correspond to a given iteration
 
 def file_name_p(iteration):
-    if iteration == 0 : return(f"../Simulation_results/Reservoir_model/output/p/output_p000000.vtu")
+    if iteration == 0 : return(f"../data-out/reservoir/output/p/output_p000000.vtu")
     digits = int(math.log10(iteration))+1
     car = ""
     for i in range(6-digits): car += "0"
-    return(f"../Simulation_results/Reservoir_model/output/p/output_p" + car + str(iteration)+ ".vtu")
+    return(f"../data-out/reservoir/output/p/output_p" + car + str(iteration)+ ".vtu")
 
 def file_name_h(Number):
-    if Number == 0 : return(f"../Simulation_results/Reservoir_model/output/h/output_h000000.vtu")
+    if Number == 0 : return(f"../data-out/reservoir/output/h/output_h000000.vtu")
     digits = int(math.log10(Number))+1
     car = ""
     for i in range(6-digits): car += "0"
-    return(f"../Simulation_results/Reservoir_model/output/h/output_h" + car + str(Number)+ ".vtu")
+    return(f"../data-out/reservoir/output/h/output_h" + car + str(Number)+ ".vtu")
 
 ########################################################################################################################
 # Convert time t in seconds to calendar format (min, hour, day, year)
